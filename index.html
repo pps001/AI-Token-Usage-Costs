@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Token Cost Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f3;
+    --bg-tertiary: #eeede8;
+    --text-primary: #1a1a18;
+    --text-secondary: #6b6b67;
+    --text-tertiary: #9a9a95;
+    --border-light: rgba(0,0,0,0.1);
+    --border-mid: rgba(0,0,0,0.18);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --color-success: #0f6e56;
+    --color-warning: #854f0b;
+    --color-danger: #a32d2d;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: #1e1e1c;
+      --bg-secondary: #282825;
+      --bg-tertiary: #323230;
+      --text-primary: #f0ede8;
+      --text-secondary: #9a9a95;
+      --text-tertiary: #6b6b67;
+      --border-light: rgba(255,255,255,0.1);
+      --border-mid: rgba(255,255,255,0.18);
+      --color-success: #5dcaa5;
+      --color-warning: #ef9f27;
+      --color-danger: #f09595;
+    }
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .container { max-width: 860px; margin: 0 auto; }
+
+  header { margin-bottom: 2rem; }
+  header h1 { font-size: 22px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
+  header p { font-size: 14px; color: var(--text-secondary); }
+
+  .section-label {
+    font-size: 11px; font-weight: 500; color: var(--text-secondary);
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px;
+  }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 2rem; }
+  .metric { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 16px 18px; }
+  .metric-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .metric-value { font-size: 24px; font-weight: 500; color: var(--text-primary); }
+  .metric-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
+
+  .segment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 2rem; }
+  @media (max-width: 560px) { .segment-grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 1.1rem 1.25rem;
+  }
+
+  .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .card-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .card-pop { font-size: 11px; color: var(--text-secondary); margin-left: auto; }
+
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .row-label { font-size: 12px; color: var(--text-secondary); width: 72px; flex-shrink: 0; }
+  .row input[type=range] {
+    flex: 1; height: 4px; border-radius: 2px; accent-color: var(--text-primary);
+    cursor: pointer; background: var(--bg-tertiary); outline: none; border: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  .row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--text-primary); cursor: pointer;
+  }
+  .row-val { font-size: 12px; font-weight: 500; color: var(--text-primary); min-width: 56px; text-align: right; }
+
+  .tier-label { font-size: 11px; font-weight: 500; color: var(--text-secondary); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+  .tier-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .tier-btn {
+    flex: 1; font-size: 11px; font-family: var(--font); padding: 6px 0;
+    border: 0.5px solid var(--border-mid); border-radius: var(--radius-md);
+    cursor: pointer; background: transparent; color: var(--text-secondary);
+    transition: all 0.15s; font-weight: 400;
+  }
+  .tier-btn:hover { background: var(--bg-secondary); }
+  .tier-btn.active { font-weight: 500; }
+  .tier-small.active  { background: #E1F5EE; color: #0F6E56; border-color: #5DCAA5; }
+  .tier-medium.active { background: #E6F1FB; color: #185FA5; border-color: #378ADD; }
+  .tier-large.active  { background: #FAEEDA; color: #854F0B; border-color: #EF9F27; }
+
+  .cost-badge { font-size: 11px; padding: 4px 10px; border-radius: var(--radius-md); display: inline-block; font-weight: 500; }
+  .small-badge  { background: #E1F5EE; color: #0F6E56; }
+  .medium-badge { background: #E6F1FB; color: #185FA5; }
+  .large-badge  { background: #FAEEDA; color: #854F0B; }
+
+  hr { border: none; border-top: 0.5px solid var(--border-light); margin: 1.75rem 0; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; font-size: 12px; color: var(--text-secondary); }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  .chart-wrap { position: relative; width: 100%; height: 240px; margin-bottom: 2rem; }
+
+  .sensitivity { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 2rem; }
+  .sens-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 14px 16px; }
+  .sens-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+  .sens-val { font-size: 20px; font-weight: 500; }
+  .sens-desc { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
+
+  footer { font-size: 11px; color: var(--text-tertiary); text-align: center; padding-top: 1rem; border-top: 0.5px solid var(--border-light); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>AI token cost dashboard</h1>
+    <p>Adjust active days, daily tokens, and model tier per segment to forecast annual spend.</p>
+  </header>
+
+  <div class="section-label">Summary</div>
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-label">Total annual cost</div><div class="metric-value" id="total-cost">—</div><div class="metric-sub">across all segments</div></div>
+    <div class="metric"><div class="metric-label">Total tokens</div><div class="metric-value" id="total-tokens">—</div><div class="metric-sub">annual consumption</div></div>
+    <div class="metric"><div class="metric-label">Blended rate</div><div class="metric-value" id="blended-rate">—</div><div class="metric-sub">per million tokens</div></div>
+    <div class="metric"><div class="metric-label">Cost per user</div><div class="metric-value" id="cost-user">—</div><div class="metric-sub">across 55,000 users</div></div>
+  </div>
+
+  <hr>
+  <div class="section-label">Adjust segments</div>
+  <div class="segment-grid">
+
+    <div class="card">
+      <div class="card-head"><div class="dot" style="background:#EF9F27"></div><div class="card-title">Research power users</div><div class="card-pop">1,000 users</div></div>
+      <div class="row"><span class="row-label">Active days</span><input type="range" id="r-days" min="50" max="365" step="1" value="200"><span class="row-val" id="r-days-v">200</span></div>
+      <div class="row"><span class="row-label">Tokens/day</span><input type="range" id="r-tok" min="1000" max="50000" step="500" value="15000"><span class="row-val" id="r-tok-v">15,000</span></div>
+      <div class="tier-label">Model tier</div>
+      <div class="tier-row">
+        <button class="tier-btn tier-small" onclick="setTier('r','small')">Small</button>
+        <button class="tier-btn tier-medium" onclick="setTier('r','medium')">Medium</button>
+        <button class="tier-btn tier-large active" onclick="setTier('r','large')">Large</button>
+      </div>
+      <div class="cost-badge large-badge" id="r-badge">$7.42/M · Large</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="dot" style="background:#378ADD"></div><div class="card-title">General staff</div><div class="card-pop">9,000 users</div></div>
+      <div class="row"><span class="row-label">Active days</span><input type="range" id="s-days" min="50" max="365" step="1" value="180"><span class="row-val" id="s-days-v">180</span></div>
+      <div class="row"><span class="row-label">Tokens/day</span><input type="range" id="s-tok" min="500" max="20000" step="250" value="3000"><span class="row-val" id="s-tok-v">3,000</span></div>
+      <div class="tier-label">Model tier</div>
+      <div class="tier-row">
+        <button class="tier-btn tier-small" onclick="setTier('s','small')">Small</button>
+        <button class="tier-btn tier-medium active" onclick="setTier('s','medium')">Medium</button>
+        <button class="tier-btn tier-large" onclick="setTier('s','large')">Large</button>
+      </div>
+      <div class="cost-badge medium-badge" id="s-badge">$3.87/M · Medium</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="dot" style="background:#1D9E75"></div><div class="card-title">Active students (high)</div><div class="card-pop">15,000 users</div></div>
+      <div class="row"><span class="row-label">Active days</span><input type="range" id="a-days" min="50" max="365" step="1" value="160"><span class="row-val" id="a-days-v">160</span></div>
+      <div class="row"><span class="row-label">Tokens/day</span><input type="range" id="a-tok" min="500" max="20000" step="250" value="5000"><span class="row-val" id="a-tok-v">5,000</span></div>
+      <div class="tier-label">Model tier</div>
+      <div class="tier-row">
+        <button class="tier-btn tier-small" onclick="setTier('a','small')">Small</button>
+        <button class="tier-btn tier-medium active" onclick="setTier('a','medium')">Medium</button>
+        <button class="tier-btn tier-large" onclick="setTier('a','large')">Large</button>
+      </div>
+      <div class="cost-badge medium-badge" id="a-badge">$3.87/M · Medium</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="dot" style="background:#888780"></div><div class="card-title">Casual students (low)</div><div class="card-pop">30,000 users</div></div>
+      <div class="row"><span class="row-label">Active days</span><input type="range" id="c-days" min="10" max="200" step="1" value="60"><span class="row-val" id="c-days-v">60</span></div>
+      <div class="row"><span class="row-label">Tokens/day</span><input type="range" id="c-tok" min="250" max="10000" step="250" value="2000"><span class="row-val" id="c-tok-v">2,000</span></div>
+      <div class="tier-label">Model tier</div>
+      <div class="tier-row">
+        <button class="tier-btn tier-small active" onclick="setTier('c','small')">Small</button>
+        <button class="tier-btn tier-medium" onclick="setTier('c','medium')">Medium</button>
+        <button class="tier-btn tier-large" onclick="setTier('c','large')">Large</button>
+      </div>
+      <div class="cost-badge small-badge" id="c-badge">$0.88/M · Small</div>
+    </div>
+
+  </div>
+
+  <hr>
+  <div class="section-label">Cost breakdown by segment</div>
+  <div class="legend">
+    <span><span class="legend-dot" style="background:#EF9F27"></span>Research</span>
+    <span><span class="legend-dot" style="background:#378ADD"></span>General staff</span>
+    <span><span class="legend-dot" style="background:#1D9E75"></span>Active students</span>
+    <span><span class="legend-dot" style="background:#888780"></span>Casual students</span>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="costChart" role="img" aria-label="Bar chart showing annual cost breakdown by user segment">Annual AI cost by user segment.</canvas>
+  </div>
+
+  <hr>
+  <div class="section-label">Sensitivity scenarios</div>
+  <div class="sensitivity">
+    <div class="sens-card">
+      <div class="sens-label">Baseline (current settings)</div>
+      <div class="sens-val" id="sc-base" style="color:var(--color-success)">—</div>
+      <div class="sens-desc">Efficient routing assumed</div>
+    </div>
+    <div class="sens-card">
+      <div class="sens-label">30% shift to large models</div>
+      <div class="sens-val" id="sc-30" style="color:var(--color-warning)">—</div>
+      <div class="sens-desc">Moderate overuse of large models</div>
+    </div>
+    <div class="sens-card">
+      <div class="sens-label">50% shift to large models</div>
+      <div class="sens-val" id="sc-50" style="color:var(--color-danger)">—</div>
+      <div class="sens-desc">Heavy large model reliance</div>
+    </div>
+    <div class="sens-card">
+      <div class="sens-label">Agentic workflows</div>
+      <div class="sens-val" id="sc-agent" style="color:var(--color-danger)">—</div>
+      <div class="sens-desc">Long outputs + agentic overhead (2×)</div>
+    </div>
+  </div>
+
+  <footer>AI token cost dashboard · figures based on May 2026 pricing · adjust assumptions to reflect your environment</footer>
+</div>
+
+<script>
+const RATES = { small: 0.88, medium: 3.87, large: 7.42 };
+const POP   = { r: 1000, s: 9000, a: 15000, c: 30000 };
+const TIERS = { r: 'large', s: 'medium', a: 'medium', c: 'small' };
+const BADGE_CLASS = { small: 'small-badge', medium: 'medium-badge', large: 'large-badge' };
+const BADGE_LABEL = { small: '$0.88/M · Small', medium: '$3.87/M · Medium', large: '$7.42/M · Large' };
+
+function fmt(n)  { return '$' + Math.round(n).toLocaleString(); }
+function fmtB(n) { return (n / 1e9).toFixed(2) + 'B'; }
+
+function getTokens(seg) {
+  return POP[seg] * (+document.getElementById(seg+'-days').value) * (+document.getElementById(seg+'-tok').value);
+}
+function getCost(seg) { return getTokens(seg) / 1e6 * RATES[TIERS[seg]]; }
+
+function setTier(seg, tier) {
+  TIERS[seg] = tier;
+  const card = document.getElementById(seg+'-badge').closest('.card');
+  card.querySelectorAll('.tier-btn').forEach(b => {
+    b.classList.remove('active');
+    if (b.classList.contains('tier-'+tier)) b.classList.add('active');
+  });
+  const badge = document.getElementById(seg+'-badge');
+  badge.className = 'cost-badge ' + BADGE_CLASS[tier];
+  badge.textContent = BADGE_LABEL[tier];
+  update();
+}
+
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+const tickColor = isDark ? '#6b6b67' : '#9a9a95';
+
+let chart;
+function initChart() {
+  const ctx = document.getElementById('costChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Research power users', 'General staff', 'Active students', 'Casual students'],
+      datasets: [{
+        data: [0,0,0,0],
+        backgroundColor: ['#EF9F27','#378ADD','#1D9E75','#888780'],
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => '  ' + fmt(ctx.raw) } }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: { color: tickColor, font: { size: 12 } }
+        },
+        y: {
+          grid: { color: gridColor },
+          border: { display: false },
+          ticks: {
+            color: tickColor,
+            font: { size: 12 },
+            callback: v => '$' + (v >= 1000 ? Math.round(v/1000)+'K' : v)
+          }
+        }
+      }
+    }
+  });
+}
+
+function update() {
+  const segs = ['r','s','a','c'];
+  const costs = segs.map(getCost);
+  const totalCost = costs.reduce((a,b)=>a+b,0);
+  const totalTok  = segs.map(getTokens).reduce((a,b)=>a+b,0);
+  const blended   = totalCost / (totalTok / 1e6);
+
+  document.getElementById('total-cost').textContent   = fmt(totalCost);
+  document.getElementById('total-tokens').textContent = fmtB(totalTok);
+  document.getElementById('blended-rate').textContent = '$' + blended.toFixed(2);
+  document.getElementById('cost-user').textContent    = '$' + (totalCost / 55000).toFixed(2);
+
+  chart.data.datasets[0].data = costs;
+  chart.update('none');
+
+  const largePer1M = RATES['large'];
+  document.getElementById('sc-base').textContent  = fmt(totalCost);
+  document.getElementById('sc-30').textContent    = fmt(totalCost * 0.7 + (totalTok/1e6) * largePer1M * 0.3);
+  document.getElementById('sc-50').textContent    = fmt(totalCost * 0.5 + (totalTok/1e6) * largePer1M * 0.5);
+  document.getElementById('sc-agent').textContent = fmt(totalCost * 2.2);
+}
+
+['r','s','a','c'].forEach(seg => {
+  ['days','tok'].forEach(field => {
+    const el  = document.getElementById(seg+'-'+field);
+    const out = document.getElementById(seg+'-'+field+'-v');
+    el.addEventListener('input', () => {
+      out.textContent = (+el.value).toLocaleString();
+      update();
+    });
+  });
+});
+
+initChart();
+update();
+</script>
+</body>
+</html>
